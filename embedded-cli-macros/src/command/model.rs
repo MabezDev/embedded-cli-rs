@@ -94,6 +94,7 @@ struct ArgAttrs {
 #[darling(default, attributes(command), forward_attrs(allow, doc, cfg))]
 struct FieldCommandAttrs {
     subcommand: bool,
+    flatten: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -284,6 +285,7 @@ pub struct Command {
     pub ident: Ident,
     pub named_args: bool,
     pub subcommand: Option<Subcommand>,
+    pub is_struct: bool,
 }
 
 impl Command {
@@ -312,6 +314,7 @@ impl Command {
             ident: variant_ident.clone(),
             named_args,
             subcommand,
+            is_struct: false,
         })
     }
 
@@ -327,7 +330,7 @@ impl Command {
                 errors
                     .handle_in(|| {
                         let command_attrs = FieldCommandAttrs::from_field(field)?;
-                        if command_attrs.subcommand {
+                        if command_attrs.subcommand || command_attrs.flatten {
                             if has_positional {
                                 return Err(Error::custom(
                                     "Command cannot have both positional arguments and subcommand",

@@ -43,7 +43,11 @@ fn create_parsing(ident: &Ident, commands: &[Command]) -> Result<TokenStream> {
 fn command_parsing(ident: &Ident, command: &Command) -> TokenStream {
     let name = &command.name;
     let variant_name = &command.ident;
-    let variant_fqn = quote! { #ident::#variant_name };
+    let variant_fqn = if command.is_struct {
+        quote! { #ident }
+    } else {
+        quote! { #ident::#variant_name }
+    };
 
     let rhs = if command.args.is_empty() && command.subcommand.is_none() {
         quote! { #variant_fqn, }

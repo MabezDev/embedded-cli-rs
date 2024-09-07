@@ -1,7 +1,7 @@
 use darling::{Error, FromDeriveInput, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput};
+use syn::{Data, DeriveInput, Variant};
 
 use crate::{processor, utils::TargetType};
 
@@ -27,26 +27,51 @@ struct ServiceAttrs {
 pub fn derive_command(input: DeriveInput) -> Result<TokenStream> {
     let opts = ServiceAttrs::from_derive_input(&input)?;
     let DeriveInput {
+        attrs,
         ident,
         data,
         generics,
         ..
     } = input;
 
-    let data = if let Data::Enum(data) = data {
-        data
-    } else {
-        return Err(Error::custom("Command can be derived only for an enum").with_span(&ident));
+    let mut errors = Error::accumulator();
+
+    let commands: Vec<Command> = match data {
+        Data::Enum(data) => data
+            .variants
+            .iter()
+            .filter_map(|variant| errors.handle_in(|| Command::parse(variant)))
+            .collect(),
+        Data::Struct(data) => {
+            let mut v = Vec::new();
+
+            // Do a transform of
+            // #[attrs]
+            // struct A { field1: bool }
+            //
+            // to
+            //
+            // #[attrs]
+            // A::A { field1: bool }
+
+            let mut cmd = Command::parse(&Variant {
+                attrs,
+                ident: ident.clone(),
+                fields: data.fields,
+                discriminant: None,
+            })?;
+
+            cmd.is_struct = true;
+
+            v.push(cmd);
+
+            v
+        }
+        _ => return Err(Error::custom("Command can be derived only for an enum").with_span(&ident)),
     };
 
     let target = TargetType::parse(ident, generics)?;
 
-    let mut errors = Error::accumulator();
-    let commands: Vec<Command> = data
-        .variants
-        .iter()
-        .filter_map(|variant| errors.handle_in(|| Command::parse(variant)))
-        .collect();
     errors.finish()?;
 
     let help_title = opts.help_title.unwrap_or("Commands".to_string());

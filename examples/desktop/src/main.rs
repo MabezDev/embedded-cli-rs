@@ -12,6 +12,11 @@ use termion::raw::{IntoRawMode, RawTerminal};
 
 use ufmt::{uwrite, uwriteln};
 
+#[derive(Debug, Command, ufmt::derive::uDebug)]
+struct Test {
+    inner: u32
+}
+
 #[derive(Debug, Command)]
 enum BaseCommand<'a> {
     /// Control LEDs
@@ -32,6 +37,16 @@ enum BaseCommand<'a> {
 
         #[command(subcommand)]
         command: AdcCommand<'a>,
+    },
+
+    /// Test
+    Test {
+        /// ADC id
+        #[arg(long)]
+        id: u8,
+
+        #[command(flatten)]
+        test: Test,
     },
 
     /// Show some status
@@ -157,6 +172,16 @@ fn on_adc(
     Ok(())
 }
 
+fn on_test(
+    cli: &mut CliHandle<'_, Writer, Infallible>,
+    _state: &mut AppState,
+    id: u8,
+    test: Test,
+) -> Result<(), Infallible> {
+    uwriteln!(cli.writer(), "{} => {:?}", id, test)?;
+    Ok(())
+}
+
 fn on_status(
     cli: &mut CliHandle<'_, Writer, Infallible>,
     state: &mut AppState,
@@ -222,6 +247,7 @@ Use left and right to move inside input."
                     BaseCommand::Led { id, command } => on_led(cli, &mut state, id, command),
                     BaseCommand::Adc { id, command } => on_adc(cli, &mut state, id, command),
                     BaseCommand::Status => on_status(cli, &mut state),
+                    BaseCommand::Test { id, test } => on_test(cli, &mut state, id, test),
                     BaseCommand::Exit => {
                         state.should_exit = true;
                         cli.writer().write_str("Cli will shutdown now")
